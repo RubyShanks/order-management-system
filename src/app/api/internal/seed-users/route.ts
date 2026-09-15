@@ -31,7 +31,6 @@ export async function POST(request: Request) {
   });
 
   if (custError && custError.message.includes('already exists')) {
-    // Ensure profile exists and email is confirmed
     const { data: users } = await adminClient.auth.admin.listUsers();
     const existing = users.users.find((u) => u.email === customerEmail);
     if (existing) {

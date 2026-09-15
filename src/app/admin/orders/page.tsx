@@ -41,9 +41,20 @@ export default async function AdminOrdersPage({
   }
 
   // Sanitize to prevent PostgREST comma and parenthesis injection
-  const safeQueryParam = queryParam.replace(/[,()]/g, '')
+  const safeQueryParam = queryParam.replace(/[,()]/g, '').trim()
   if (safeQueryParam) {
-    query = query.or(`id.ilike.%${safeQueryParam}%,email_snapshot.ilike.%${safeQueryParam}%`)
+    const cleanHex = safeQueryParam.replace(/-/g, '').toLowerCase()
+    const isHex = /^[0-9a-f]{1,32}$/.test(cleanHex)
+
+    if (isHex) {
+      const minRaw = cleanHex.padEnd(32, '0')
+      const maxRaw = cleanHex.padEnd(32, 'f')
+      const minUuid = `${minRaw.slice(0, 8)}-${minRaw.slice(8, 12)}-${minRaw.slice(12, 16)}-${minRaw.slice(16, 20)}-${minRaw.slice(20, 32)}`
+      const maxUuid = `${maxRaw.slice(0, 8)}-${maxRaw.slice(8, 12)}-${maxRaw.slice(12, 16)}-${maxRaw.slice(16, 20)}-${maxRaw.slice(20, 32)}`
+      query = query.or(`and(id.gte.${minUuid},id.lte.${maxUuid}),email_snapshot.ilike.%${safeQueryParam}%`)
+    } else {
+      query = query.ilike('email_snapshot', `%${safeQueryParam}%`)
+    }
   }
 
   const { data: orders, count } = await query

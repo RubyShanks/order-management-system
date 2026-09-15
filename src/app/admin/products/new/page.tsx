@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,11 +11,14 @@ import { createProduct, uploadProductImage } from '@/app/admin/actions'
 import { toast } from '@/components/ui/toast'
 import Link from 'next/link'
 import Image from 'next/image'
+import { Upload, Trash2, Loader2, Image as ImageIcon } from 'lucide-react'
 
 export default function NewProductPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [uploading, setUploading] = useState(false)
   const [imageUrl, setImageUrl] = useState('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -24,7 +27,7 @@ export default function NewProductPage() {
     const formData = new FormData()
     formData.append('file', file)
     
-    setLoading(true)
+    setUploading(true)
     try {
       const result = await uploadProductImage(formData)
       if (result.success && result.url) {
@@ -36,7 +39,7 @@ export default function NewProductPage() {
     } catch (err: unknown) {
       toast({ title: 'Upload failed', description: err instanceof Error ? err.message : 'Upload failed', type: 'error' })
     } finally {
-      setLoading(false)
+      setUploading(false)
     }
   }
 
@@ -110,11 +113,90 @@ export default function NewProductPage() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="image">Product Image</Label>
-              <Input id="image" type="file" accept="image/jpeg, image/png, image/webp" onChange={handleImageUpload} disabled={loading} />
-              {imageUrl && (
-                <div className="mt-2">
-                  <Image src={imageUrl} alt="Preview" width={128} height={128} unoptimized className="h-32 w-32 object-cover rounded border" />
+              <Label>Product Image</Label>
+              <input
+                ref={fileInputRef}
+                id="image"
+                type="file"
+                accept="image/jpeg, image/png, image/webp"
+                onChange={handleImageUpload}
+                disabled={loading || uploading}
+                className="hidden"
+              />
+
+              {!imageUrl ? (
+                <div
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center border-2 border-dashed border-input hover:border-primary/60 hover:bg-muted/30 transition-all rounded-xl p-6 cursor-pointer text-center group"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-muted group-hover:bg-primary/10 group-hover:text-primary transition-colors text-muted-foreground mb-2">
+                    {uploading ? (
+                      <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                    ) : (
+                      <Upload className="h-6 w-6" />
+                    )}
+                  </div>
+                  <p className="text-sm font-medium text-foreground">
+                    {uploading ? 'Uploading image...' : 'Click to select an image or drag & drop'}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Supports JPEG, PNG, or WebP (max 5MB)
+                  </p>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="mt-3 pointer-events-none"
+                    disabled={loading || uploading}
+                  >
+                    <Upload className="w-3.5 h-3.5 mr-1.5" />
+                    Choose File
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4 p-3 border rounded-xl bg-muted/20">
+                  <div className="relative h-20 w-20 flex-shrink-0 overflow-hidden rounded-lg border bg-background">
+                    <Image
+                      src={imageUrl}
+                      alt="Product preview"
+                      fill
+                      unoptimized
+                      className="object-cover"
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 text-sm font-medium text-foreground">
+                      <ImageIcon className="w-4 h-4 text-primary" />
+                      <span>Image uploaded successfully</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground truncate mt-0.5">{imageUrl}</p>
+                    <div className="flex gap-2 mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={loading || uploading}
+                      >
+                        {uploading ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <Upload className="w-3.5 h-3.5 mr-1" />}
+                        Change Image
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                        onClick={() => {
+                          setImageUrl('')
+                          if (fileInputRef.current) fileInputRef.current.value = ''
+                        }}
+                        disabled={loading || uploading}
+                      >
+                        <Trash2 className="w-3.5 h-3.5 mr-1" />
+                        Remove
+                      </Button>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>

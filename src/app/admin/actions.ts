@@ -10,6 +10,7 @@ import {
 } from '@/lib/validation'
 import { initiateRefund } from '@/lib/services/refund'
 import { revalidatePath } from 'next/cache'
+import { createAdminClient } from '@/lib/supabase/admin'
 
 async function verifyAdmin() {
   const supabase = await createServerSupabaseClient()
@@ -228,7 +229,7 @@ export async function initiateRefundAction(formData: FormData) {
 
 export async function uploadProductImage(formData: FormData) {
   try {
-    const { supabase } = await verifyAdmin()
+    await verifyAdmin()
     const file = formData.get('file') as File
     
     if (!file) {
@@ -243,17 +244,42 @@ export async function uploadProductImage(formData: FormData) {
       return { success: false, error: 'Invalid file type. Only JPEG, PNG, and WebP are supported.' }
     }
     
-    const fileExt = file.name.split('.').pop()
+    const fileExt = file.name.split('.').pop() || 'jpg'
     const fileName = `${Math.random().toString(36).substring(2, 15)}_${Date.now()}.${fileExt}`
     const filePath = `${fileName}`
     
-    const { error } = await supabase.storage
-      .from('product-images')
-      .upload(filePath, file)
-      
-    if (error) throw error
+    const adminClient = createAdminClient()
+
+    // Ensure product-images bucket exists and is public
+    try {
+      const { data: buckets } = await adminClient.storage.listBuckets()
+      if (!buckets?.some((b) => b.name === 'product-images')) {
+        await adminClient.storage.createBucket('product-images', {
+          public: true,
+          fileSizeLimit: 5 * 1024 * 1024,
+          allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+        })
+      }
+    } catch (bucketErr) {
+      console.warn('Bucket check/create notice:', bucketErr)
+    }
+
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
     
-    const { data: { publicUrl } } = supabase.storage
+    const { error: uploadError } = await adminClient.storage
+      .from('product-images')
+      .upload(filePath, buffer, {
+        contentType: file.type,
+        upsert: true,
+      })
+      
+    if (uploadError) {
+      console.error('Storage upload error:', uploadError)
+      return { success: false, error: uploadError.message }
+    }
+    
+    const { data: { publicUrl } } = adminClient.storage
       .from('product-images')
       .getPublicUrl(filePath)
       

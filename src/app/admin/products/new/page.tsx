@@ -25,14 +25,18 @@ export default function NewProductPage() {
     formData.append('file', file)
     
     setLoading(true)
-    const result = await uploadProductImage(formData)
-    setLoading(false)
-    
-    if (result.success && result.url) {
-      setImageUrl(result.url)
-      toast.add({ title: 'Image uploaded successfully' })
-    } else {
-      toast.add({ title: 'Upload failed', description: result.error, type: 'error' })
+    try {
+      const result = await uploadProductImage(formData)
+      if (result.success && result.url) {
+        setImageUrl(result.url)
+        toast({ title: 'Image uploaded successfully' })
+      } else {
+        toast({ title: 'Upload failed', description: result.error, type: 'error' })
+      }
+    } catch (err: unknown) {
+      toast({ title: 'Upload failed', description: err instanceof Error ? err.message : 'Upload failed', type: 'error' })
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -40,23 +44,27 @@ export default function NewProductPage() {
     e.preventDefault()
     setLoading(true)
     
-    const formData = new FormData(e.currentTarget)
-    // Convert price to cents
-    const priceDollars = parseFloat(formData.get('price_dollars') as string)
-    formData.set('price', Math.round(priceDollars * 100).toString())
-    if (imageUrl) {
-      formData.set('image_url', imageUrl)
-    }
+    try {
+      const formData = new FormData(e.currentTarget)
+      // Convert price to cents
+      const priceDollars = parseFloat(formData.get('price_dollars') as string)
+      formData.set('price', Math.round(priceDollars * 100).toString())
+      if (imageUrl) {
+        formData.set('image_url', imageUrl)
+      }
 
-    const result = await createProduct(formData)
-    setLoading(false)
-    
-    if (result.success) {
-      toast.add({ title: 'Product created successfully' })
-      router.push('/admin/products')
-      router.refresh()
-    } else {
-      toast.add({ title: 'Failed to create product', description: result.error, type: 'error' })
+      const result = await createProduct(formData)
+      if (result.success) {
+        toast({ title: 'Product created successfully' })
+        router.push('/admin/products')
+        router.refresh()
+      } else {
+        toast({ title: 'Failed to create product', description: result.error, type: 'error' })
+      }
+    } catch (err: unknown) {
+      toast({ title: 'Failed to create product', description: err instanceof Error ? err.message : 'An unexpected error occurred', type: 'error' })
+    } finally {
+      setLoading(false)
     }
   }
 

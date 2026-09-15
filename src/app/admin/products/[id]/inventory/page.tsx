@@ -12,13 +12,14 @@ import {
 import { InventoryAdjustmentForm } from './InventoryForm'
 import { formatDate } from '@/lib/utils/format'
 
-export default async function InventoryPage({ params }: { params: { id: string } }) {
+export default async function InventoryPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createServerSupabaseClient()
   
   const { data: product, error: pError } = await supabase
     .from('products')
     .select('id, name, sku')
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (pError || !product) {
@@ -28,13 +29,13 @@ export default async function InventoryPage({ params }: { params: { id: string }
   const { data: inventory } = await supabase
     .from('inventory')
     .select('*')
-    .eq('product_id', params.id)
+    .eq('product_id', id)
     .single()
 
   const { data: movements } = await supabase
     .from('stock_movements')
     .select('*, order:orders(id)')
-    .eq('product_id', params.id)
+    .eq('product_id', id)
     .order('created_at', { ascending: false })
     .limit(50)
 

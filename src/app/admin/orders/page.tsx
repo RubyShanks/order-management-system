@@ -17,16 +17,18 @@ import { Pagination } from '@/components/admin/Pagination'
 export default async function AdminOrdersPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined }
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>
 }) {
+  const resolvedParams = await searchParams
   const supabase = await createServerSupabaseClient()
   
-  const page = typeof searchParams.page === 'string' ? parseInt(searchParams.page, 10) : 1
+  let page = typeof resolvedParams.page === 'string' ? parseInt(resolvedParams.page, 10) : 1
+  if (isNaN(page) || page < 1) page = 1
   const limit = 20
   const offset = (page - 1) * limit
   
-  const queryParam = typeof searchParams.q === 'string' ? searchParams.q : ''
-  const statusParam = typeof searchParams.status === 'string' ? searchParams.status : 'all'
+  const queryParam = typeof resolvedParams.q === 'string' ? resolvedParams.q : ''
+  const statusParam = typeof resolvedParams.status === 'string' ? resolvedParams.status : 'all'
 
   let query = supabase
     .from('orders')
@@ -38,8 +40,10 @@ export default async function AdminOrdersPage({
     query = query.eq('status', statusParam as 'pending_payment' | 'paid' | 'fulfilled' | 'cancelled' | 'refunded')
   }
 
-  if (queryParam) {
-    query = query.or(`id.ilike.%${queryParam}%,email_snapshot.ilike.%${queryParam}%`)
+  // Sanitize to prevent PostgREST comma and parenthesis injection
+  const safeQueryParam = queryParam.replace(/[,()]/g, '')
+  if (safeQueryParam) {
+    query = query.or(`id.ilike.%${safeQueryParam}%,email_snapshot.ilike.%${safeQueryParam}%`)
   }
 
   const { data: orders, count } = await query

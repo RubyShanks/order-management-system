@@ -15,7 +15,8 @@ import {
 } from "@/components/ui/table"
 import { OrderActions } from './OrderActions'
 
-export default async function OrderDetailsPage({ params }: { params: { id: string } }) {
+export default async function OrderDetailsPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const supabase = await createServerSupabaseClient()
   
   const { data: order, error } = await supabase
@@ -29,11 +30,11 @@ export default async function OrderDetailsPage({ params }: { params: { id: strin
       order_status_history(*),
       refund_requests(*)
     `)
-    .eq('id', params.id)
+    .eq('id', id)
     .single()
 
   if (error || !order) {
-    notFound()
+    return <div>Error loading order: {JSON.stringify(error)} - Order ID: {id}</div>
   }
 
   const pendingRefund = order.refund_requests?.find((r: { status: string }) => r.status === 'pending')

@@ -5,9 +5,16 @@ import { Toast as ToastPrimitive } from "@base-ui/react/toast"
 import { cn } from "cn"
 
 import { Button } from "@/components/ui/button"
-import { XIcon, CircleCheckIcon, InfoIcon, TriangleAlertIcon, OctagonXIcon, Loader2Icon } from "lucide-react"
+import { X as XIcon, CircleCheck as CircleCheckIcon, Info as InfoIcon, TriangleAlert as TriangleAlertIcon, OctagonX as OctagonXIcon, Loader2 as Loader2Icon } from "lucide-react"
 
-const toast = ToastPrimitive.createToastManager()
+const toastManager = ToastPrimitive.createToastManager()
+
+type ToastFn = ((options: Parameters<typeof toastManager.add>[0]) => string) & typeof toastManager
+
+const toast = Object.assign(
+  (options: Parameters<typeof toastManager.add>[0]) => toastManager.add(options),
+  toastManager
+) as ToastFn
 
 function ToastProvider({ ...props }: ToastPrimitive.Provider.Props) {
   return <ToastPrimitive.Provider {...props} />

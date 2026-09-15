@@ -41,7 +41,7 @@ export const createProductSchema = z.object({
   price_amount: z
     .number()
     .int('Price must be in whole cents')
-    .positive('Price must be positive')
+    .nonnegative('Price cannot be negative')
     .max(99999999, 'Price exceeds maximum'), // Max ~$999,999.99
   is_active: z.boolean().optional().default(true),
 });

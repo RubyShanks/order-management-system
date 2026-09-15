@@ -51,10 +51,11 @@ export default async function AdminProductsPage() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {products?.map((product: { id: string; sku: string; name: string; description: string | null; price_amount: number; image_path: string | null; is_active: boolean; created_at: string; updated_at: string; inventory: { on_hand: number; reserved: number; }[] }) => {
-              const onHand = product.inventory?.[0]?.on_hand || 0
-              const reserved = product.inventory?.[0]?.reserved || 0
-              const available = onHand - reserved
+            {products?.map((product: { id: string; sku: string; name: string; description: string | null; price_amount: number; image_path: string | null; is_active: boolean; created_at: string; updated_at: string; inventory: { on_hand: number; reserved: number; }[] | { on_hand: number; reserved: number; } | null }) => {
+              const inv = Array.isArray(product.inventory) ? product.inventory[0] : product.inventory;
+              const onHand = inv?.on_hand || 0;
+              const reserved = inv?.reserved || 0;
+              const available = onHand - reserved;
 
               return (
                 <TableRow key={product.id}>

@@ -1,0 +1,513 @@
+# Order management system: implementation plan
+
+Build a complete, deployed order management system using the assessment brief as the acceptance criteria.
+
+Prioritize inventory correctness, payment handling, authorization, and working end-to-end flows. Keep the interface simple and accessible.
+
+## 1. Scope and technology choices
+
+Required:
+
+* Next.js 14+ with App Router and TypeScript.
+* Supabase Postgres with RLS enabled on every application table.
+* Stripe test mode.
+* Vercel deployment from a Git repository.
+
+Recommended defaults:
+
+* Supabase Auth.
+* Supabase client with generated database types.
+* SQL functions for transactional operations.
+* Hosted Stripe Checkout.
+* Supabase Storage for product images.
+
+Permitted alternatives:
+
+* Drizzle or Prisma instead of direct Supabase database access.
+* Clerk or Auth.js if justified in the technical write-up and integrated so RLS is enforced through verified JWT claims.
+* Stripe Payment Elements if there is a concrete benefit.
+
+Do not change the defaults merely to add tooling. If using an ORM, document how user identity and RLS remain effective; an unrestricted database connection must not silently bypass authorization.
+
+Inspect repository instructions and current official documentation before implementation. Pin compatible dependencies and commit the lockfile.
+
+## 2. Business rules
+
+Implement these decisions:
+
+1. Anonymous users can browse active products.
+2. Authentication is required for checkout.
+3. Use one configured currency and integer minor units.
+4. Reserve stock atomically when creating an order.
+5. Configure Checkout Sessions to expire after 30 minutes.
+6. A verified payment-failure event initiates cancellation of the checkout and order.
+7. Prevent further payment before releasing the reservation.
+8. A customer wishing to retry after cancellation starts a new order, with availability checked again.
+9. Only a verified payment webhook can mark an order paid.
+10. Successful full refunds of paid, unfulfilled orders restore stock.
+11. Fulfilled orders cannot be refunded under the specified transition graph.
+12. Product deactivation preserves historical orders.
+13. Customer-initiated cancellation is outside scope.
+14. Card payments only; exclude delayed payment methods.
+15. Shipping calculations, tax, discounts, notifications, and multi-currency are outside scope.
+
+This revision replaces the earlier policy allowing retries within the same checkout.
+
+Client-side cart state is sufficient. Persistence across browser sessions is an optional bonus.
+
+## 3. Architecture
+
+Use one Next.js application containing:
+
+* Storefront and customer account pages.
+* Admin pages.
+* Server actions for authenticated commands.
+* A Stripe webhook route.
+* A protected recovery endpoint or equivalent executable recovery task.
+
+Use Postgres transactions for operations involving orders, inventory, and audit records.
+
+Keep network calls outside database transactions. Never hold row locks while calling Stripe.
+
+Suggested structure:
+
+```text
+src/
+  app/
+    (store)/
+    (auth)/
+    account/orders/
+    admin/products/
+    admin/orders/
+    api/stripe/webhook/
+    api/internal/reconcile/
+  components/
+  lib/
+    auth/
+    database/
+    stripe/
+    validation/
+    services/
+
+supabase/
+  migrations/
+  seed.sql
+
+scripts/
+tests/
+README.md
+DECISIONS.md
+.env.example
+```
+
+## 4. Data model
+
+Create migrations with foreign keys, constraints, indexes, grants, and RLS policies.
+
+### profiles
+
+* Authenticated user ID.
+* Role: customer or admin.
+* Display name.
+* Timestamps.
+
+Default new users to customer. Never trust user-editable signup metadata to assign admin privileges.
+
+### products
+
+* ID and unique SKU.
+* Name and description.
+* Price in minor units.
+* Image path.
+* Active flag.
+* Timestamps.
+
+Use valid positive prices compatible with the configured payment currency.
+
+### inventory
+
+* Product ID.
+* On-hand quantity.
+* Reserved quantity.
+* Updated timestamp.
+
+Constraints:
+
+```text
+on_hand >= 0
+reserved >= 0
+reserved <= on_hand
+available = on_hand - reserved
+```
+
+Successful payment removes purchased units from both on-hand and reserved quantities. Fulfilment does not decrement stock again.
+
+### orders
+
+* ID.
+* Customer ID and email snapshot.
+* Business status.
+* Total and currency.
+* Checkout request key and cart fingerprint.
+* Stripe Session and PaymentIntent references.
+* Session expiry.
+* Internal integration state.
+* Timestamps.
+
+Make checkout request keys unique per customer. Make non-null Stripe references unique.
+
+Keep recovery and cancellation-in-progress states separate from the required business status.
+
+### order_items
+
+* Order and product IDs.
+* SKU, name, and unit-price snapshots.
+* Positive integer quantity.
+
+Keep historical snapshots unchanged after product edits.
+
+### stock_movements
+
+* Product.
+* On-hand and reserved deltas.
+* Reason.
+* Order or operation reference.
+* Actor.
+* Timestamp.
+
+Record every stock change, including initial stock. Prevent ordinary application operations from modifying or deleting history.
+
+### order_status_history
+
+* Order.
+* Previous and new status.
+* Customer-safe description.
+* Actor or event reference.
+* Timestamp.
+
+Separate internal diagnostics from customer-visible history.
+
+### stripe_events
+
+* Unique Stripe event ID.
+* Event type and object reference.
+* Related order.
+* Processing completion timestamp.
+
+A completed event record must commit with its associated database changes.
+
+If introducing a durable webhook inbox, distinguish “received” from “processed”; receipt alone must never suppress unfinished processing.
+
+### refund_requests
+
+* Order.
+* Request/idempotency key.
+* Stripe refund reference.
+* Processing status.
+* Requesting admin.
+* Timestamps.
+
+Prevent overlapping active or successful full-refund operations.
+
+Add indexes for customer order history, admin filtering, email search, order children, Stripe lookups, and recovery scans.
+
+## 5. Authorization
+
+Enforce access at both application and database boundaries.
+
+| Resource                      | Anonymous | Customer             | Admin                          |
+| ----------------------------- | --------- | -------------------- | ------------------------------ |
+| Active public catalogue       | Read      | Read                 | Manage                         |
+| Profiles                      | None      | Own permitted fields | Required administrative access |
+| Orders and items              | None      | Own only             | All, with controlled mutations |
+| Customer-safe order history   | None      | Own only             | All                            |
+| Inventory and stock movements | None      | None                 | Read and audited adjustment    |
+| Internal payment records      | None      | None                 | Restricted server operations   |
+| Product images                | Read      | Read                 | Upload/manage                  |
+
+Expose available quantity through a narrow catalogue function or projection. Do not grant direct inventory access to shoppers.
+
+RLS restricts rows, not sensitive columns. Use column grants, restricted projections, or separate internal tables as appropriate.
+
+For database functions:
+
+* Restrict execution privileges explicitly.
+* Fix the search path for security-definer functions.
+* Derive customer identity from verified authentication.
+* Check admin role inside administrative operations.
+* Restrict payment and refund transitions to trusted server execution.
+* Reject arbitrary client-supplied ownership, totals, and statuses.
+
+Admin privileges must not allow manually marking orders paid.
+
+Protect admin layouts, server actions, and API routes independently. Middleware is supplementary.
+
+Keep Stripe secrets and privileged Supabase credentials in server-only modules. Never expose them through client bundles or logs.
+
+## 6. Atomic order creation
+
+The browser submits product IDs, quantities, and a stable checkout request key.
+
+Within one database transaction:
+
+1. Validate quantity types, bounds, and cart size.
+2. Combine duplicate products.
+3. Resolve duplicate request keys safely.
+4. Reject reuse of a key with different cart contents.
+5. Lock relevant product/inventory records in a consistent order.
+6. Read authoritative prices and active flags.
+7. Check all requested quantities against availability.
+8. Create the pending order and item snapshots.
+9. Increase reservations.
+10. Write stock movements and initial status history.
+11. Commit.
+
+If any item fails, roll back the entire operation.
+
+Document a consistent locking order across checkout, stock adjustments, payment, cancellation, and refund operations.
+
+Stock adjustments must require a reason and cannot reduce on-hand below reserved quantity.
+
+## 7. Stripe session creation and recovery
+
+After committing the order:
+
+1. Build Stripe line items from saved order snapshots.
+2. Configure card payments and a 30-minute expiry.
+3. Include the order ID in session and PaymentIntent metadata.
+4. Use a stable Stripe idempotency key.
+5. Create the session.
+6. Save its references and authoritative expiry.
+7. Redirect the customer.
+
+Repeated client requests must not duplicate orders, sessions, or reservations.
+
+Handle the database–Stripe gap explicitly:
+
+* Definite creation failure: cancel and release stock.
+* Timeout or uncertain response: retain the reservation and recover the original request.
+* Stripe success followed by database failure: recover the session reference using persisted request information and metadata.
+
+Persist the parameters necessary to repeat the same Stripe request. Do not change parameters under an existing idempotency key or blindly create a second session.
+
+An in-memory task after a serverless response is not a recovery mechanism.
+
+## 8. Payment-failure cancellation
+
+Handle `payment_intent.payment_failed` explicitly.
+
+A failed attempt does not itself prove that the Checkout Session is no longer payable. Use this sequence:
+
+1. Verify the event signature and identify the order.
+2. Check whether cancellation is still applicable.
+3. Record a durable cancellation request if necessary.
+4. Outside a database transaction, resolve and expire the associated open Checkout Session.
+5. Confirm that checkout is expired and unpaid.
+6. In one database transaction, lock the order, cancel it if still pending, release stock once, write history, and complete event processing.
+
+If expiration times out, retain the reservation and retry safely.
+
+If expiration fails because the session has completed or payment is processing, retrieve current Stripe state:
+
+* Do not release stock while payment outcome remains uncertain.
+* Do not cancel an already successful payment based on a stale failure event.
+* Let the verified success webhook apply the paid transition.
+* Record actionable diagnostics for unresolved cases.
+
+This is prompt failure handling with a necessary safety precondition, not a deliberate wait until the 30-minute deadline.
+
+Leave checkout recovery links disabled so an expired session cannot unexpectedly create a new payable flow for a cancelled order.
+
+## 9. Webhook processing
+
+Verify signatures using the raw request body.
+
+Support:
+
+* `checkout.session.completed` as the canonical Checkout success event, after verifying payment is paid.
+* `payment_intent.payment_failed` for safe cancellation.
+* `checkout.session.expired` for reservation release.
+* Appropriate refund events for confirmed full refunds.
+
+Validate order mapping, payment references, amount, currency, and test-mode expectations.
+
+For transactional state changes:
+
+1. Deduplicate the event.
+2. Lock the order.
+3. Validate current state.
+4. Apply the transition.
+5. Update inventory.
+6. Write history and movement records.
+7. Commit completed event processing with those changes.
+
+Different event IDs describing the same outcome must also be harmless.
+
+Do not assume event order. Defer or retry events with unresolved prerequisites rather than marking them completed prematurely.
+
+Return success after durable handling. For operations requiring external work, use either bounded synchronous processing with retryable failures or a durable inbox with an actual worker. Do not acknowledge and discard unfinished work.
+
+The checkout return page only reads order state. Display “Payment processing” while awaiting confirmation. A redirect never changes payment status.
+
+## 10. Order transitions and refunds
+
+Permit only:
+
+```text
+pending_payment → paid
+pending_payment → cancelled
+paid → fulfilled
+paid → refunded
+```
+
+Reject other transitions server-side and through database mutation boundaries.
+
+Refund initiation:
+
+1. Verify admin.
+2. Lock the order.
+3. Require paid status and no active/successful refund.
+4. Persist the refund request.
+5. Commit.
+6. Call Stripe `refunds.create` with an idempotency key.
+7. Persist or recover the result.
+
+Fulfilment must use the same order lock and reject an active refund request.
+
+While refund processing is pending, retain business status `paid` and show separate processing information.
+
+Only confirmed successful full-refund webhook processing may mark the order refunded and restore stock. Failed refunds do neither.
+
+## 11. Recovery operations
+
+Implement bounded, repeatable recovery for:
+
+* Uncertain session creation.
+* Missing session references.
+* Failed cancellation/expiration calls.
+* Overdue pending sessions.
+* Uncertain refund requests.
+
+Inspect Stripe state before releasing reservations.
+
+Local age alone is insufficient evidence that checkout cannot accept payment.
+
+Recovery must not independently mark orders paid. Preserve the verified-webhook boundary and provide a documented mechanism to recover missing webhook processing.
+
+Configure a supported scheduler if available and provide a manual recovery command. Clearly document any deployment-dependent setup.
+
+## 12. Required interface
+
+Storefront:
+
+* Product listing and detail pages.
+* Images, prices, and availability.
+* Client-state cart with quantity editing and removal.
+* Checkout with meaningful errors.
+* Out-of-stock purchase controls disabled.
+
+Customer account:
+
+* Sign-up, sign-in, sign-out, password reset.
+* Paginated order list.
+* Order detail with items, total, status, and timeline.
+* Checkout return state.
+
+Admin:
+
+* Product create/edit/deactivate.
+* Image upload with size/type restrictions.
+* Stock adjustment with mandatory reason.
+* Paginated order list with status filtering.
+* Search by order ID or customer email.
+* Order details, payment reference, and status timeline.
+* Valid fulfilment and refund controls.
+
+Use labelled forms, keyboard navigation, visible loading states, and accessible errors.
+
+Optional bonus: cart persistence across sessions.
+
+## 13. Verification
+
+Test critical invariants with focused integration tests and real Stripe test-mode exercises:
+
+* Two concurrent buyers of the last unit: only one succeeds.
+* Multi-item stock conflict: complete rollback.
+* Duplicate checkout request: no duplicate reservation/session.
+* Invalid quantities and manipulated prices: rejected.
+* Declined test card: checkout safely terminated, order cancelled, stock restored.
+* Fresh checkout after cancellation: new availability check.
+* Expiry: exactly one release.
+* Duplicate or overlapping webhooks: no repeated effects.
+* Delayed failure after success: no cancellation or stock release.
+* Session-expiration timeout: reservation retained until resolved.
+* Invalid webhook signature: no mutation.
+* Customers cannot access other orders, inventory, or privileged functions.
+* Customers cannot grant themselves admin.
+* Concurrent refund/fulfilment: one valid outcome.
+* Duplicate refunds: no repeated refund or restock.
+* Product edits preserve order snapshots.
+* Migrations recreate the application schema.
+
+Use the required cards:
+
+* Success: `4242 4242 4242 4242`.
+* Decline: `4000 0000 0000 0002`.
+
+Replay a webhook using the Stripe CLI and record the observed result.
+
+Run lint, type checking, focused tests, and a production build.
+
+## 14. Delivery sequence
+
+Target the brief’s 12–20-hour estimate:
+
+| Stage                                     | Target  |
+| ----------------------------------------- | ------- |
+| Foundation and auth                       | 2 hours |
+| Schema, RLS, stock transactions           | 4 hours |
+| Checkout, webhooks, cancellation, refunds | 5 hours |
+| Storefront and customer pages             | 2 hours |
+| Admin screens                             | 3 hours |
+| Verification, deployment, documentation   | 4 hours |
+
+Complete one working checkout flow early. Cut optional persistence and visual polish before required correctness.
+
+If the estimate proves insufficient, report remaining work honestly. Do not claim unverified guarantees.
+
+## 15. Documentation and submission
+
+Provide:
+
+* Git repository, public or shared with the assessor.
+* Source, lockfile, migrations, and seed scripts.
+* Working Vercel production URL.
+* `.env.example` with no secrets.
+* README covering local setup, environment variables, Stripe CLI webhook forwarding, and admin seeding.
+* Auth redirect, Storage, webhook, and recovery configuration.
+* One customer test account and one admin test account.
+* Actual verification outcomes and known limitations.
+
+Write a 500–1000-word technical explanation in README or `DECISIONS.md` covering:
+
+1. Stock reservation and concurrency.
+2. Webhook idempotency.
+3. RLS policy design.
+4. **One specific RLS policy found tricky during implementation**, why it was tricky, how it was implemented, and how it was verified.
+5. What would change with another week.
+6. Anything cut for time and why.
+
+Also explain failure cancellation, stale-event handling, and any alternative authentication or database tooling chosen.
+
+Do not commit passwords or secrets.
+
+Prepare the submission as a reply to the email that originally supplied the assessment brief, containing:
+
+* Repository link.
+* Live Vercel URL.
+* Customer test credentials.
+* Admin test credentials.
+
+The recipient and submission channel come from the original email. Prepare the reply for the user; send it only if the user explicitly authorizes sending.
+
+Submit within seven calendar days of receiving the brief. Do not invent the receipt date or deadline.

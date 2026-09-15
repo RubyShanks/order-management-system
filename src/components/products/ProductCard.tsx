@@ -25,6 +25,7 @@ export interface ProductCardProps {
 export function ProductCard({ product }: ProductCardProps) {
   const { addItem } = useCart();
   const [justAdded, setJustAdded] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   const isOutOfStock = product.available <= 0;
 
@@ -54,13 +55,14 @@ export function ProductCard({ product }: ProductCardProps) {
         href={`/products/${product.id}`}
         className="relative aspect-square w-full overflow-hidden bg-muted block"
       >
-        {product.image_path ? (
+        {product.image_path && !imgError ? (
           <Image
             src={product.image_path}
             alt={product.name}
             fill
             className="object-cover transition-transform duration-300 group-hover:scale-105"
             sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+            onError={() => setImgError(true)}
           />
         ) : (
           <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground">

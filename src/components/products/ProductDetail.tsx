@@ -36,6 +36,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
   const { addItem, openCart } = useCart();
   const [quantity, setQuantity] = useState<number>(1);
   const [justAdded, setJustAdded] = useState<boolean>(false);
+  const [imgError, setImgError] = useState<boolean>(false);
 
   const isOutOfStock = product.available <= 0;
   const maxSelectable = Math.max(1, Math.min(product.available, 99));
@@ -84,7 +85,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
       <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:gap-16">
         {/* Left Column: Product Image */}
         <div className="relative aspect-square w-full overflow-hidden rounded-2xl border bg-muted shadow-sm">
-          {product.image_path ? (
+          {product.image_path && !imgError ? (
             <Image
               src={product.image_path}
               alt={product.name}
@@ -92,6 +93,7 @@ export function ProductDetail({ product }: ProductDetailProps) {
               priority
               className="object-cover"
               sizes="(max-width: 768px) 100vw, 50vw"
+              onError={() => setImgError(true)}
             />
           ) : (
             <div className="flex h-full w-full items-center justify-center bg-muted text-muted-foreground">

@@ -44,6 +44,8 @@ export async function createProduct(formData: FormData) {
     
     const validatedData = createProductSchema.parse(rawData)
     
+    const adminClient = createAdminClient()
+
     // Insert product
     const { data: product, error: productError } = await supabase
       .from('products')
@@ -61,7 +63,7 @@ export async function createProduct(formData: FormData) {
     if (productError) throw productError
     
     // Insert inventory
-    const { error: invError } = await supabase
+    const { error: invError } = await adminClient
       .from('inventory')
       .insert({
         product_id: product.id,
@@ -72,7 +74,7 @@ export async function createProduct(formData: FormData) {
     if (invError) throw invError
     
     // Insert stock movement
-    const { error: smError } = await supabase
+    const { error: smError } = await adminClient
       .from('stock_movements')
       .insert({
         product_id: product.id,

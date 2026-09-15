@@ -24,6 +24,18 @@ export default function NewProductPage() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      toast({ title: 'Invalid file format', description: 'Please upload a JPEG, PNG, or WebP image.', type: 'error' })
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      toast({ title: 'File too large', description: 'Maximum file size is 5MB.', type: 'error' })
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      return
+    }
+
     const formData = new FormData()
     formData.append('file', file)
     

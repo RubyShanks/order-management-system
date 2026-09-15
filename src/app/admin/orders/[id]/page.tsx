@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { formatPrice, formatDate, getStatusColor } from '@/lib/utils/format'
 import { Badge } from '@/components/ui/badge'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, MapPin } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -149,6 +149,46 @@ export default async function OrderDetailsPage({ params }: { params: Promise<{ i
                 <div className="text-sm font-medium text-muted-foreground">Customer ID</div>
                 <div className="text-sm font-mono truncate">{order.customer_id}</div>
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center gap-2 space-y-0">
+              <MapPin className="h-4 w-4 text-primary" />
+              <CardTitle>Shipping Destination</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {order.shipping_address ? (
+                <div className="text-sm space-y-1">
+                  {order.shipping_address.name && (
+                    <div className="font-semibold text-foreground">{order.shipping_address.name}</div>
+                  )}
+                  {order.shipping_address.address?.line1 && (
+                    <div>{order.shipping_address.address.line1}</div>
+                  )}
+                  {order.shipping_address.address?.line2 && (
+                    <div className="text-muted-foreground">{order.shipping_address.address.line2}</div>
+                  )}
+                  <div>
+                    {[
+                      order.shipping_address.address?.city,
+                      order.shipping_address.address?.state,
+                      order.shipping_address.address?.postal_code,
+                    ]
+                      .filter(Boolean)
+                      .join(', ')}
+                  </div>
+                  {order.shipping_address.address?.country && (
+                    <div className="font-medium text-muted-foreground uppercase">
+                      {order.shipping_address.address.country}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground italic">
+                  No shipping address provided for this order.
+                </div>
+              )}
             </CardContent>
           </Card>
 

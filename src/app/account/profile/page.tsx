@@ -1,9 +1,11 @@
 import React from 'react';
 import { createServerSupabaseClient } from '@/lib/supabase/server';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { formatDate } from '@/lib/utils/format';
-import { User, Mail, Calendar, Shield } from 'lucide-react';
+import { User, Mail, Calendar, Shield, KeyRound } from 'lucide-react';
 
 export const dynamic = 'force-dynamic';
 
@@ -77,6 +79,27 @@ export default async function ProfilePage() {
               </div>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-lg flex items-center gap-2">
+            <KeyRound className="h-5 w-5 text-primary" />
+            Security & Credentials
+          </CardTitle>
+          <CardDescription>Manage your account password</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-foreground">Password</p>
+            <p className="text-xs text-muted-foreground">
+              Update your account password anytime to keep your account secure.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/account/reset-password">Change Password</Link>
+          </Button>
         </CardContent>
       </Card>
     </div>

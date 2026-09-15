@@ -162,6 +162,10 @@ export async function createCheckoutSession(
         order_id: orderId,
       },
     },
+    shipping_address_collection: {
+      allowed_countries: ['US', 'CA', 'GB', 'IN', 'AU', 'DE', 'FR'],
+    },
+    billing_address_collection: 'auto',
   };
 
   let session: Stripe.Checkout.Session;

@@ -4,7 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { cn } from '@/lib/utils';
-import { Package, User } from 'lucide-react';
+import { Package, User, KeyRound } from 'lucide-react';
 
 interface AccountNavProps {
   userEmail: string;
@@ -25,6 +25,12 @@ export function AccountNav({ userEmail }: AccountNavProps) {
       href: '/account/profile',
       icon: User,
       active: pathname === '/account/profile',
+    },
+    {
+      label: 'Update Password',
+      href: '/account/reset-password',
+      icon: KeyRound,
+      active: pathname === '/account/reset-password',
     },
   ];
 

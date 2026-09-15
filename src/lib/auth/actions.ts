@@ -7,9 +7,11 @@ import {
   signInSchema,
   signUpSchema,
   resetPasswordSchema,
+  updatePasswordSchema,
   type SignInInput,
   type SignUpInput,
   type ResetPasswordInput,
+  type UpdatePasswordInput,
 } from '@/lib/validation';
 
 export interface AuthActionResult {
@@ -165,6 +167,41 @@ export async function resetPassword(
   return {
     success: true,
     message: 'If an account exists with this email, a password reset link has been sent.',
+  };
+}
+
+/**
+ * Server action to update the authenticated user's password (e.g. from password recovery session).
+ */
+export async function updatePassword(
+  prevStateOrData: AuthActionResult | FormData | UpdatePasswordInput | null,
+  formData?: FormData
+): Promise<AuthActionResult> {
+  const data = parseInputData(prevStateOrData, formData);
+  const validation = updatePasswordSchema.safeParse({
+    password: data.password,
+    confirm_password: data.confirm_password,
+  });
+
+  if (!validation.success) {
+    return {
+      error: validation.error.issues[0]?.message || 'Invalid password',
+    };
+  }
+
+  const supabase = await createServerSupabaseClient();
+  const { error } = await supabase.auth.updateUser({
+    password: validation.data.password,
+  });
+
+  if (error) {
+    return { error: error.message };
+  }
+
+  revalidatePath('/', 'layout');
+  return {
+    success: true,
+    message: 'Your password has been successfully updated.',
   };
 }
 

@@ -123,6 +123,17 @@ export interface Database {
           stripe_payment_intent_id: string | null;
           session_expires_at: string | null;
           integration_state: IntegrationState;
+          shipping_address: {
+            name?: string | null;
+            address?: {
+              line1?: string | null;
+              line2?: string | null;
+              city?: string | null;
+              state?: string | null;
+              postal_code?: string | null;
+              country?: string | null;
+            } | null;
+          } | null;
           created_at: string;
           updated_at: string;
         };
@@ -139,6 +150,7 @@ export interface Database {
           stripe_payment_intent_id?: string | null;
           session_expires_at?: string | null;
           integration_state?: IntegrationState;
+          shipping_address?: Json | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -155,6 +167,7 @@ export interface Database {
           stripe_payment_intent_id?: string | null;
           session_expires_at?: string | null;
           integration_state?: IntegrationState;
+          shipping_address?: Json | null;
           created_at?: string;
           updated_at?: string;
         };

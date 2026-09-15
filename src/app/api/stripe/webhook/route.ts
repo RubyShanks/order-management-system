@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { stripe } from '@/lib/stripe/client';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { Json } from '@/lib/supabase/types';
 import Stripe from 'stripe';
 
 export const runtime = 'nodejs';
@@ -49,6 +50,19 @@ export async function POST(request: Request) {
           });
           
           if (error) throw error;
+
+          // Capture shipping address if provided by customer in Stripe Checkout
+          const sessionWithShipping = session as unknown as { shipping_details?: Record<string, unknown> | null };
+          if (sessionWithShipping.shipping_details) {
+            const { error: shippingError } = await adminClient
+              .from('orders')
+              .update({ shipping_address: sessionWithShipping.shipping_details as unknown as Json })
+              .eq('id', orderId);
+
+            if (shippingError) {
+              console.error(`Failed to update shipping address for order ${orderId}:`, shippingError);
+            }
+          }
         }
         break;
       }

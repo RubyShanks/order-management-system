@@ -22,6 +22,7 @@ import {
   Package,
   AlertTriangle,
   RotateCcw,
+  MapPin,
 } from 'lucide-react';
 
 interface OrderDetailPageProps {
@@ -223,6 +224,50 @@ export default async function CustomerOrderDetailPage({ params }: OrderDetailPag
           </div>
         </CardContent>
       </Card>
+
+      {/* Delivery Destination (if captured) */}
+      {order.shipping_address && (
+        <Card>
+          <CardHeader className="border-b pb-4">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <MapPin className="h-5 w-5 text-primary" />
+              Delivery Destination
+            </CardTitle>
+            <CardDescription>
+              Shipping address provided for this order
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="p-6">
+            <div className="text-sm space-y-1">
+              {order.shipping_address.name && (
+                <div className="font-semibold text-foreground text-base mb-1">
+                  {order.shipping_address.name}
+                </div>
+              )}
+              {order.shipping_address.address?.line1 && (
+                <div>{order.shipping_address.address.line1}</div>
+              )}
+              {order.shipping_address.address?.line2 && (
+                <div className="text-muted-foreground">{order.shipping_address.address.line2}</div>
+              )}
+              <div>
+                {[
+                  order.shipping_address.address?.city,
+                  order.shipping_address.address?.state,
+                  order.shipping_address.address?.postal_code,
+                ]
+                  .filter(Boolean)
+                  .join(', ')}
+              </div>
+              {order.shipping_address.address?.country && (
+                <div className="font-medium text-muted-foreground uppercase text-xs tracking-wider mt-1">
+                  {order.shipping_address.address.country}
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Order Status History Timeline */}
       <Card>

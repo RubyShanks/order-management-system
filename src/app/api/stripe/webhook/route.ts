@@ -52,17 +52,56 @@ export async function POST(request: Request) {
           if (error) throw error;
 
           // Capture shipping address if provided by customer in Stripe Checkout
-          const sessionWithShipping = session as unknown as { shipping_details?: Record<string, unknown> | null };
+          const sessionWithShipping = session as unknown as { 
+            shipping_details?: Record<string, unknown> | null,
+            customer_details?: { address?: Record<string, unknown> | null, name?: string | null } | null 
+          };
+          
+          let addressData: Record<string, unknown> | null = null;
           if (sessionWithShipping.shipping_details) {
-            const { error: shippingError } = await adminClient
+            addressData = sessionWithShipping.shipping_details;
+          } else if (sessionWithShipping.customer_details?.address) {
+            addressData = {
+              address: sessionWithShipping.customer_details.address,
+              name: sessionWithShipping.customer_details.name || session.customer_details?.name
+            };
+          }
+
+          if (addressData) {
+            console.log(`[Webhook] Saving shipping details for order ${orderId}:`, addressData);
+            
+            // Try updating as JSONB first
+            let { error: shippingError } = await adminClient
               .from('orders')
-              .update({ shipping_address: sessionWithShipping.shipping_details as unknown as Json })
+              .update({ shipping_address: addressData as unknown as Json })
               .eq('id', orderId);
 
+            // If it fails, maybe the user created the column as TEXT instead of JSONB. Try as string.
             if (shippingError) {
-              console.error(`Failed to update shipping address for order ${orderId}:`, shippingError);
+              console.warn(`[Webhook] JSONB update failed, trying as string. Error:`, shippingError);
+              const { error: fallbackError } = await adminClient
+                .from('orders')
+                .update({ shipping_address: JSON.stringify(addressData) as unknown as Json })
+                .eq('id', orderId);
+              
+              if (fallbackError) {
+                console.error(`[Webhook] Failed to update shipping address for order ${orderId}. Ensure column exists. Error:`, fallbackError);
+              } else {
+                console.log(`[Webhook] Successfully updated shipping address for order ${orderId} (as string)`);
+              }
+            } else {
+              console.log(`[Webhook] Successfully updated shipping address for order ${orderId}`);
             }
+          } else {
+            console.log(`[Webhook] No shipping details found in session for order ${orderId}`);
           }
+          
+          // Revalidate the order details pages so the UI updates
+          const { revalidatePath } = await import('next/cache');
+          revalidatePath(`/admin/orders/${orderId}`);
+          revalidatePath(`/account/orders/${orderId}`);
+          revalidatePath('/admin/orders');
+          revalidatePath('/account/orders');
         }
         break;
       }

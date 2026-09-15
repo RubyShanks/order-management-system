@@ -225,19 +225,19 @@ export default async function CustomerOrderDetailPage({ params }: OrderDetailPag
         </CardContent>
       </Card>
 
-      {/* Delivery Destination (if captured) */}
-      {order.shipping_address && (
-        <Card>
-          <CardHeader className="border-b pb-4">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <MapPin className="h-5 w-5 text-primary" />
-              Delivery Destination
-            </CardTitle>
-            <CardDescription>
-              Shipping address provided for this order
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="p-6">
+      {/* Delivery Destination */}
+      <Card>
+        <CardHeader className="border-b pb-4">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <MapPin className="h-5 w-5 text-primary" />
+            Delivery Destination
+          </CardTitle>
+          <CardDescription>
+            Shipping address provided for this order
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="p-6">
+          {order.shipping_address ? (
             <div className="text-sm space-y-1">
               {order.shipping_address.name && (
                 <div className="font-semibold text-foreground text-base mb-1">
@@ -265,9 +265,13 @@ export default async function CustomerOrderDetailPage({ params }: OrderDetailPag
                 </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <p className="text-sm text-muted-foreground italic">
+              No delivery address was recorded for this order.
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Order Status History Timeline */}
       <Card>

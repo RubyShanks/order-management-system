@@ -96,7 +96,8 @@ export async function createProduct(formData: FormData) {
 
 export async function updateProduct(formData: FormData) {
   try {
-    const { supabase } = await verifyAdmin()
+    await verifyAdmin()
+    const adminClient = createAdminClient()
     
     const rawData: Record<string, unknown> = {
       id: formData.get('id'),
@@ -118,15 +119,17 @@ export async function updateProduct(formData: FormData) {
       updatePayload.image_path = image_path;
     }
     
-    const { error } = await supabase
+    const { error } = await adminClient
       .from('products')
       .update(updatePayload as Record<string, never>)
       .eq('id', id as string)
       
     if (error) throw error
     
+    revalidatePath('/')
     revalidatePath('/admin/products')
     revalidatePath(`/admin/products/${id}/edit`)
+    revalidatePath(`/products/${id}`)
     return { success: true }
   } catch (error: unknown) {
     console.error('updateProduct error:', error)
@@ -136,17 +139,20 @@ export async function updateProduct(formData: FormData) {
 
 export async function toggleProductActive(productId: string, isActive: boolean) {
   try {
-    const { supabase } = await verifyAdmin()
+    await verifyAdmin()
+    const adminClient = createAdminClient()
     
-    const { error } = await supabase
+    const { error } = await adminClient
       .from('products')
       .update({ is_active: isActive })
       .eq('id', productId)
       
     if (error) throw error
     
+    revalidatePath('/')
     revalidatePath('/admin/products')
     revalidatePath(`/admin/products/${productId}/edit`)
+    revalidatePath(`/products/${productId}`)
     return { success: true }
   } catch (error: unknown) {
     console.error('toggleProductActive error:', error)

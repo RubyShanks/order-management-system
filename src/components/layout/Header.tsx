@@ -161,7 +161,7 @@ export function Header() {
                 <DropdownMenuSeparator />
 
                 <DropdownMenuItem
-                  onClick={() => router.push('/account/orders')}
+                  render={<Link href="/account/orders" />}
                   className="cursor-pointer"
                 >
                   <Package className="mr-2 h-4 w-4" />
@@ -169,7 +169,7 @@ export function Header() {
                 </DropdownMenuItem>
 
                 <DropdownMenuItem
-                  onClick={() => router.push('/account/profile')}
+                  render={<Link href="/account/profile" />}
                   className="cursor-pointer"
                 >
                   <UserIcon className="mr-2 h-4 w-4" />
@@ -180,7 +180,7 @@ export function Header() {
                   <>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem
-                      onClick={() => router.push('/admin/orders')}
+                      render={<Link href="/admin/orders" />}
                       className="cursor-pointer text-amber-600 dark:text-amber-500"
                     >
                       <Shield className="mr-2 h-4 w-4" />

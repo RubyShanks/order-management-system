@@ -1,11 +1,15 @@
 import { z } from 'zod';
 
+const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+export const uuidSchema = (message: string = 'Invalid ID') =>
+  z.string().regex(uuidRegex, message);
+
 // ============================================================
 // Cart & Checkout Validation
 // ============================================================
 
 export const cartItemSchema = z.object({
-  product_id: z.string().uuid('Invalid product ID'),
+  product_id: uuidSchema('Invalid product ID'),
   quantity: z.number().int().positive('Quantity must be a positive integer').max(99, 'Maximum 99 per item'),
 });
 
@@ -43,7 +47,7 @@ export const createProductSchema = z.object({
 });
 
 export const updateProductSchema = createProductSchema.partial().extend({
-  id: z.string().uuid('Invalid product ID'),
+  id: uuidSchema('Invalid product ID'),
 });
 
 export type CreateProductInput = z.infer<typeof createProductSchema>;
@@ -54,7 +58,7 @@ export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 // ============================================================
 
 export const stockAdjustmentSchema = z.object({
-  product_id: z.string().uuid('Invalid product ID'),
+  product_id: uuidSchema('Invalid product ID'),
   on_hand_delta: z.number().int('Stock adjustment must be a whole number'),
   reason: z
     .string()
@@ -69,11 +73,11 @@ export type StockAdjustmentInput = z.infer<typeof stockAdjustmentSchema>;
 // ============================================================
 
 export const fulfillOrderSchema = z.object({
-  order_id: z.string().uuid('Invalid order ID'),
+  order_id: uuidSchema('Invalid order ID'),
 });
 
 export const refundOrderSchema = z.object({
-  order_id: z.string().uuid('Invalid order ID'),
+  order_id: uuidSchema('Invalid order ID'),
 });
 
 export type FulfillOrderInput = z.infer<typeof fulfillOrderSchema>;
